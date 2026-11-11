@@ -1,0 +1,183 @@
+// Small Business Sales and Order Analytics
+// Existing model measure definitions captured on 9 November 2026.
+// Home table: Orders. Formula logic is preserved from the metadata export.
+// This is a definition catalogue, not one executable DAX query.
+
+// Measure: Delivery Share %
+Delivery Share % =
+VAR DeliveryOrders =
+    CALCULATE(
+        [Total Orders],
+        Orders[fulfilment_method] = "delivery"
+    )
+VAR AllMethods =
+    CALCULATE(
+        [Total Orders],
+        REMOVEFILTERS(Orders[fulfilment_method])
+    )
+RETURN
+    DIVIDE(DeliveryOrders, AllMethods)
+
+// Measure: Known Charges Change EUR
+Known Charges Change EUR =
+VAR CurrentYear =
+    SELECTEDVALUE('Fulfilment Calendar'[Year])
+VAR FirstYear =
+    CALCULATE(
+        MIN('Fulfilment Calendar'[Year]),
+        REMOVEFILTERS('Fulfilment Calendar')
+    )
+VAR SelectedMonths =
+    VALUES('Fulfilment Calendar'[Month Number])
+VAR CurrentCharges =
+    IF([Total Orders] = 0, 0, [Known Charges EUR])
+VAR PreviousCharges =
+    CALCULATE(
+        IF([Total Orders] = 0, 0, [Known Charges EUR]),
+        REMOVEFILTERS('Fulfilment Calendar'),
+        'Fulfilment Calendar'[Year] = CurrentYear - 1,
+        TREATAS(
+            SelectedMonths,
+            'Fulfilment Calendar'[Month Number]
+        )
+    )
+RETURN
+IF(
+    NOT ISBLANK(CurrentYear)
+        && CurrentYear > FirstYear
+        && NOT ISBLANK(CurrentCharges)
+        && NOT ISBLANK(PreviousCharges),
+    CurrentCharges - PreviousCharges
+)
+
+// Measure: Known Charges EUR
+Known Charges EUR =
+SUM(Orders[order_charge_eur])
+
+// Measure: Known Charges YoY %
+Known Charges YoY % =
+VAR CurrentYear = SELECTEDVALUE('Fulfilment Calendar'[Year])
+VAR SelectedMonths = VALUES('Fulfilment Calendar'[Month Number])
+VAR CurrentCharges = [Known Charges EUR]
+VAR PreviousCharges =
+    CALCULATE(
+        [Known Charges EUR],
+        REMOVEFILTERS('Fulfilment Calendar'),
+        'Fulfilment Calendar'[Year] = CurrentYear - 1,
+        TREATAS(SelectedMonths, 'Fulfilment Calendar'[Month Number])
+    )
+RETURN
+IF(
+    NOT ISBLANK(CurrentYear) && NOT ISBLANK(CurrentCharges),
+    DIVIDE(CurrentCharges - PreviousCharges, PreviousCharges)
+)
+
+// Measure: Mean Known Order Charge EUR
+Mean Known Order Charge EUR =
+AVERAGE(Orders[order_charge_eur])
+
+// Measure: Mean Known Order Charge YoY %
+Mean Known Order Charge YoY % =
+VAR CurrentYear =
+    SELECTEDVALUE('Fulfilment Calendar'[Year])
+VAR SelectedMonths =
+    VALUES('Fulfilment Calendar'[Month Number])
+VAR CurrentMean =
+    [Mean Known Order Charge EUR]
+VAR PreviousMean =
+    CALCULATE(
+        [Mean Known Order Charge EUR],
+        REMOVEFILTERS('Fulfilment Calendar'),
+        'Fulfilment Calendar'[Year] = CurrentYear - 1,
+        TREATAS(
+            SelectedMonths,
+            'Fulfilment Calendar'[Month Number]
+        )
+    )
+RETURN
+IF(
+    NOT ISBLANK(CurrentYear) && NOT ISBLANK(CurrentMean),
+    DIVIDE(CurrentMean - PreviousMean, PreviousMean)
+)
+
+// Measure: Orders Missing Charges
+Orders Missing Charges =
+COALESCE(COUNTBLANK(Orders[order_charge_eur]), 0)
+
+// Measure: Orders per Comparison Day
+Orders per Comparison Day =
+VAR ComparisonDates =
+    FILTER(
+        VALUES('Fulfilment Calendar'[Date]),
+        NOT (
+            'Fulfilment Calendar'[Date] IN {
+                DATE(2025, 1, 1),
+                DATE(2025, 6, 24),
+                DATE(2026, 1, 1),
+                DATE(2026, 6, 24)
+            }
+        )
+    )
+RETURN
+    DIVIDE(
+        CALCULATE(
+            [Total Orders],
+            KEEPFILTERS(ComparisonDates)
+        ),
+        COUNTROWS(ComparisonDates)
+    )
+
+// Measure: Orders YoY %
+Orders YoY % =
+VAR CurrentYear = SELECTEDVALUE('Fulfilment Calendar'[Year])
+VAR SelectedMonths = VALUES('Fulfilment Calendar'[Month Number])
+VAR PreviousOrders =
+    CALCULATE(
+        [Total Orders],
+        REMOVEFILTERS('Fulfilment Calendar'),
+        'Fulfilment Calendar'[Year] = CurrentYear - 1,
+        TREATAS(SelectedMonths, 'Fulfilment Calendar'[Month Number])
+    )
+RETURN
+IF(
+    NOT ISBLANK(CurrentYear),
+    DIVIDE([Total Orders] - PreviousOrders, PreviousOrders)
+)
+
+// Measure: Self-Pickup Share %
+Self-Pickup Share % =
+VAR PickupOrders =
+    CALCULATE(
+        [Total Orders],
+        Orders[fulfilment_method] = "self-pickup"
+    )
+VAR AllMethods =
+    CALCULATE(
+        [Total Orders],
+        REMOVEFILTERS(Orders[fulfilment_method])
+    )
+RETURN
+    DIVIDE(PickupOrders, AllMethods)
+
+// Measure: Total Orders
+Total Orders =
+COALESCE(COUNTROWS(Orders), 0)
+
+// Measure: Unique Order Keys
+Unique Order Keys =
+COALESCE(DISTINCTCOUNT(Orders[source_record_key]), 0)
+
+// Measure: Unknown Fulfilment Share %
+Unknown Fulfilment Share % =
+VAR UnknownOrders =
+    CALCULATE(
+        [Total Orders],
+        Orders[fulfilment_method] IN { "unknown", BLANK() }
+    )
+VAR AllMethods =
+    CALCULATE(
+        [Total Orders],
+        REMOVEFILTERS(Orders[fulfilment_method])
+    )
+RETURN
+    DIVIDE(UnknownOrders, AllMethods)

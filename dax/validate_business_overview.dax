@@ -1,0 +1,24 @@
+// Read-only query against the existing Power BI model.
+// Explicitly reproduce the report's matched January-October year context.
+// FORMAT is used only to make percentage/difference controls readable here;
+// it does not change the stored measure definitions or their formatting.
+// Verified in Power BI Desktop on 11 November 2026.
+EVALUATE
+SUMMARIZECOLUMNS(
+    'Fulfilment Calendar'[Year],
+    FILTER(
+        ALL('Fulfilment Calendar'),
+        'Fulfilment Calendar'[Year] IN { 2025, 2026 }
+            && 'Fulfilment Calendar'[Month Number] <= 10
+    ),
+    "Orders", [Total Orders],
+    "Unique keys", [Unique Order Keys],
+    "Missing charges", [Orders Missing Charges],
+    "Known charges EUR", ROUND([Known Charges EUR], 2),
+    "Mean charge EUR", ROUND([Mean Known Order Charge EUR], 2),
+    "Orders YoY", FORMAT([Orders YoY %], "0.00%", "en-US"),
+    "Charges YoY", FORMAT([Known Charges YoY %], "0.00%", "en-US"),
+    "Mean charge YoY", FORMAT([Mean Known Order Charge YoY %], "0.00%", "en-US"),
+    "Charges change EUR", FORMAT([Known Charges Change EUR], "0.00", "en-US")
+)
+ORDER BY 'Fulfilment Calendar'[Year]
